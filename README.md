@@ -1,6 +1,26 @@
 ✦ This Python script, app.py, is a command-line tool for fetching and displaying near real-time
   intraday stock data from the Alpha Vantage financial data API.
 
+  How to run:
+
+  1. Get an API key (free): https://www.alphavantage.co/support/#api-key
+
+  2. Install deps
+
+    python -m venv .venv && source .venv/bin/activate  
+    pip install -r requirements.txt
+    export ALPHAVANTAGE_API_KEY=YOUR_KEY  
+
+  3. Fetch data:
+
+    Examples:
+    python app.py AAPL 90m --plot
+    python app.py MSFT 1d
+    python app.py TSLA 5d --full
+    python app.py TSLA 26w --plot
+    python app.py TSLA 5y --plot
+  
+  
   Here is a detailed breakdown of what the code does:
 
   Overall Purpose
@@ -68,21 +88,4 @@
    * python-dateutil: For flexible date and time parsing.
    * matplotlib: For plotting the data (used only if you --plot).
 
-How ro run:
-
-1. Get an API key (free): https://www.alphavantage.co/support/#api-key
-
-2. Install deps
-
-python -m venv .venv && source .venv/bin/activate  
-pip install -r requirements.txt
-export ALPHAVANTAGE_API_KEY=YOUR_KEY  
-
-3. Fetch data:
-
-python app.py AAPL 90m --plot
-python app.py MSFT 1d
-python app.py TSLA 5d --full
-python app.py TSLA 26w --plot
-python app.py TSLA 5y --plot
 
