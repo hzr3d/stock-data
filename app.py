@@ -1,12 +1,14 @@
 import os
 import sys
-import argparse
 import requests
 import pandas as pd
 from datetime import datetime, timedelta, timezone
 from dateutil.parser import isoparse
+from flask import Flask, render_template, request, url_for
 
 API_URL = "https://www.alphavantage.co/query"
+
+app = Flask(__name__)
 
 def parse_period(s: str) -> timedelta:
     """
@@ -136,72 +138,62 @@ def fetch_daily(symbol: str, api_key: str, full: bool) -> pd.DataFrame:
     df = pd.DataFrame.from_records(records).sort_values("time")
     return df
 
+@app.route('/')
+def index():
+    return render_template('index.html')
 
-def main():
-    p = argparse.ArgumentParser(description="Fetch near real-time intraday stock data.")
-    p.add_argument("symbol", help="Ticker symbol, e.g. AAPL, MSFT, TSLA")
-    p.add_argument("period", help="Lookback window (e.g., 90m, 6h, 1d, 5d, 1w)")
-    p.add_argument("--plot", action="store_true", help="Show a close-price plot")
-    p.add_argument("--full", action="store_true", help="Use outputsize=full (slower, more data)")
-    p.add_argument("--api-key", default=os.getenv("ALPHAVANTAGE_API_KEY"), help="Alpha Vantage API key or env ALPHAVANTAGE_API_KEY")
-    args = p.parse_args()
+@app.route('/stockdata', methods=['POST'])
+def stockdata():
+    symbol = request.form['symbol']
+    period_str = request.form['period']
+    api_key = os.getenv("ALPHAVANTAGE_API_KEY")
 
-    if not args.api_key:
-        print("ERROR: Provide Alpha Vantage API key via --api-key or ALPHAVANTAGE_API_KEY env var.", file=sys.stderr)
-        sys.exit(2)
+    if not api_key:
+        return render_template('index.html', error="API key not configured. Set ALPHAVANTAGE_API_KEY environment variable.")
 
     try:
-        lookback = parse_period(args.period)
+        lookback = parse_period(period_str)
     except ValueError as e:
-        print(f"ERROR: {e}", file=sys.stderr)
-        sys.exit(2)
+        return render_template('index.html', error=str(e))
 
     interval = choose_interval(lookback)
-    print(f"[info] symbol={args.symbol} period={args.period} interval={interval}")
-
-    # If period is > 100 days, we must use full output size to get all the data.
-    use_full_output = args.full
-    if not use_full_output and lookback > timedelta(days=100):
-        print("[info] Period > 100 days, forcing full output size to retrieve all data.")
+    
+    use_full_output = False
+    if lookback > timedelta(days=100):
         use_full_output = True
 
     try:
         if interval == "daily":
-            df = fetch_daily(args.symbol, args.api_key, full=use_full_output)
+            df = fetch_daily(symbol, api_key, full=use_full_output)
         else:
-            df = fetch_intraday(args.symbol, args.api_key, interval=interval, full=use_full_output)
+            df = fetch_intraday(symbol, api_key, interval=interval, full=use_full_output)
     except Exception as e:
-        print(f"ERROR fetching data: {e}", file=sys.stderr)
-        sys.exit(1)
+        return render_template('index.html', error=f"Error fetching data: {e}")
 
-    # Filter to the requested lookback window.
-    # Use naive "now" to compare with naive timestamps (keeps it simple).
     now_local = datetime.now()
     cutoff = now_local - lookback
     df_window = df[df["time"] >= cutoff].copy()
 
     if df_window.empty:
-        print("No data in the requested window (market closed or period too short for chosen interval).")
-        print(df.tail(5).to_string(index=False))
-        sys.exit(0)
+        return render_template('index.html', error="No data in the requested window.")
 
-    # Show a small summary + tail
-    print("\nSummary:")
-    print(f"rows={len(df_window)}, from={df_window['time'].iloc[0]} to={df_window['time'].iloc[-1]}")
-    print("\nLast 10 bars:")
-    print(df_window.tail(10).to_string(index=False))
+    # Generate plot
+    import matplotlib.pyplot as plt
+    plt.figure()
+    plt.plot(df_window["time"], df_window["close"])
+    plt.title(f"{symbol} close ({interval})")
+    plt.xlabel("Time")
+    plt.ylabel("Close")
+    plt.xticks(rotation=30, ha="right")
+    plt.tight_layout()
+    
+    plot_path = os.path.join('static', 'stock_plot.png')
+    plt.savefig(plot_path)
+    plot_url = url_for('static', filename='stock_plot.png')
 
-    if args.plot:
-        import matplotlib.pyplot as plt
-        plt.figure()
-        plt.plot(df_window["time"], df_window["close"])
-        plt.title(f"{args.symbol} close ({interval})")
-        plt.xlabel("Time")
-        plt.ylabel("Close")
-        plt.xticks(rotation=30, ha="right")
-        plt.tight_layout()
-        plt.show()
+    return render_template('index.html', 
+                           plot_url=plot_url, 
+                           data=df_window.to_html(index=False))
 
 if __name__ == "__main__":
-    main()
-
+    app.run(debug=True)

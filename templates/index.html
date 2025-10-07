@@ -1,0 +1,31 @@
+
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Stock Data</title>
+</head>
+<body>
+    <h1>Stock Data Viewer</h1>
+    <form action="/stockdata" method="post">
+        <label for="symbol">Stock Symbol:</label>
+        <input type="text" id="symbol" name="symbol" required>
+        <label for="period">Lookback Period:</label>
+        <input type="text" id="period" name="period" value="1d" required>
+        <button type="submit">Get Data</button>
+    </form>
+
+    {% if error %}
+        <p style="color: red;">{{ error }}</p>
+    {% endif %}
+
+    {% if plot_url %}
+        <h2>Close Price Plot</h2>
+        <img src="{{ plot_url }}" alt="Stock Price Plot">
+    {% endif %}
+
+    {% if data %}
+        <h2>Data</h2>
+        {{ data | safe }}
+    {% endif %}
+</body>
+</html>
