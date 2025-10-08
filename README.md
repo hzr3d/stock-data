@@ -11,16 +11,14 @@
     pip install -r requirements.txt
     export ALPHAVANTAGE_API_KEY=YOUR_KEY  
 
-  3. Fetch data:
+  3. To use the command-line interface, run the following command, 
+    replacing <symbol> and <period> with the stock symbol and desired time period (e.g., 60m, 5d, 26w, 2y):
 
-    To use the command-line interface, run the following command, replacing <symbol> and
-  <period> with the stock symbol and desired time period (e.g., 60m, 5d, 26w, 2y):
+    python app.py <symbol> <period> 
 
-        python app.py <symbol> <period>
+  4. To use the web interface, just run:
 
-    To use the web interface, just run:
-
-        python app.py 
+    python app.py  
   
   Here is a detailed breakdown of what the code does:
 
