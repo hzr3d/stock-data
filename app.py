@@ -138,62 +138,184 @@ def fetch_daily(symbol: str, api_key: str, full: bool) -> pd.DataFrame:
     df = pd.DataFrame.from_records(records).sort_values("time")
     return df
 
-@app.route('/')
-def index():
-    return render_template('index.html')
+def get_stock_data(symbol, period_str):
 
-@app.route('/stockdata', methods=['POST'])
-def stockdata():
-    symbol = request.form['symbol']
-    period_str = request.form['period']
     api_key = os.getenv("ALPHAVANTAGE_API_KEY")
 
     if not api_key:
-        return render_template('index.html', error="API key not configured. Set ALPHAVANTAGE_API_KEY environment variable.")
 
-    try:
-        lookback = parse_period(period_str)
-    except ValueError as e:
-        return render_template('index.html', error=str(e))
+        raise ValueError("API key not configured. Set ALPHAVANTAGE_API_KEY environment variable.")
+
+
+
+    lookback = parse_period(period_str)
 
     interval = choose_interval(lookback)
-    
-    use_full_output = False
-    if lookback > timedelta(days=100):
-        use_full_output = True
 
-    try:
-        if interval == "daily":
-            df = fetch_daily(symbol, api_key, full=use_full_output)
-        else:
-            df = fetch_intraday(symbol, api_key, interval=interval, full=use_full_output)
-    except Exception as e:
-        return render_template('index.html', error=f"Error fetching data: {e}")
+    
+
+    use_full_output = lookback > timedelta(days=100)
+
+
+
+    if interval == "daily":
+
+        df = fetch_daily(symbol, api_key, full=use_full_output)
+
+    else:
+
+        df = fetch_intraday(symbol, api_key, interval=interval, full=use_full_output)
+
+
 
     now_local = datetime.now()
+
     cutoff = now_local - lookback
+
     df_window = df[df["time"] >= cutoff].copy()
 
+
+
+    return df_window, interval
+
+
+
+@app.route('/')
+
+def index():
+
+    return render_template('index.html')
+
+
+
+@app.route('/stockdata', methods=['POST'])
+
+def stockdata():
+
+    symbol = request.form['symbol']
+
+    period_str = request.form['period']
+
+
+
+    try:
+
+        df_window, interval = get_stock_data(symbol, period_str)
+
+    except (ValueError, RuntimeError) as e:
+
+        return render_template('index.html', error=str(e))
+
+
+
     if df_window.empty:
+
         return render_template('index.html', error="No data in the requested window.")
 
+
+
     # Generate plot
+
     import matplotlib.pyplot as plt
+
     plt.figure()
+
     plt.plot(df_window["time"], df_window["close"])
+
     plt.title(f"{symbol} close ({interval})")
+
     plt.xlabel("Time")
+
     plt.ylabel("Close")
+
     plt.xticks(rotation=30, ha="right")
+
     plt.tight_layout()
+
     
+
     plot_path = os.path.join('static', 'stock_plot.png')
+
     plt.savefig(plot_path)
+
     plot_url = url_for('static', filename='stock_plot.png')
 
+
+
     return render_template('index.html', 
+
                            plot_url=plot_url, 
+
                            data=df_window.to_html(index=False))
 
+
+
+def main_cli():
+
+    if len(sys.argv) != 3:
+
+        print("Usage: python app.py <symbol> <period>")
+
+        sys.exit(1)
+
+
+
+    symbol = sys.argv[1]
+
+    period_str = sys.argv[2]
+
+
+
+    try:
+
+        df_window, interval = get_stock_data(symbol, period_str)
+
+    except (ValueError, RuntimeError) as e:
+
+        print(f"Error: {e}", file=sys.stderr)
+
+        sys.exit(1)
+
+
+
+    if df_window.empty:
+
+        print("No data in the requested window.")
+
+        sys.exit(0)
+
+
+
+    print(df_window.to_string())
+
+
+
+    # Generate plot
+
+    import matplotlib.pyplot as plt
+
+    plt.figure()
+
+    plt.plot(df_window["time"], df_window["close"])
+
+    plt.title(f"{symbol} close ({interval})")
+
+    plt.xlabel("Time")
+
+    plt.ylabel("Close")
+
+    plt.xticks(rotation=30, ha="right")
+    plt.tight_layout()
+    plt.show()
+
+
+
 if __name__ == "__main__":
-    app.run(debug=True)
+
+    if len(sys.argv) > 1:
+
+        main_cli()
+
+    else:
+
+        app.run(debug=True)
